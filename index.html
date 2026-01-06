@@ -3,184 +3,166 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mi Lenguaje Inventado - Control Voz</title>
+    <title>Binary Voice Controller</title>
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #050505;
+            color: #00ff41;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
             text-align: center;
-            background-color: #1a1a1a;
-            color: white;
-            padding-top: 50px;
         }
-        #status {
+        #display-binario {
+            font-size: 3rem;
+            letter-spacing: 10px;
+            margin: 20px;
+            text-shadow: 0 0 15px #00ff41;
+            min-height: 1.2em;
+        }
+        .instrucciones {
+            color: #888;
+            font-size: 0.9rem;
+            border: 1px solid #333;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        #btnEscuchar {
+            background: none;
+            border: 2px solid #00ff41;
+            color: #00ff41;
+            padding: 15px 30px;
             font-size: 1.2rem;
-            color: #00ff00;
-            margin-bottom: 20px;
-        }
-        #transcript {
-            font-style: italic;
-            color: #aaa;
-            margin-bottom: 30px;
-            min-height: 24px;
-        }
-        .btn-mic {
-            width: 100px;
-            height: 100px;
-            border-radius: 50%;
-            border: none;
-            background-color: #ff4b2b;
-            color: white;
-            font-size: 30px;
             cursor: pointer;
-            box-shadow: 0 0 20px rgba(255, 75, 43, 0.5);
-            transition: transform 0.2s;
+            margin-bottom: 20px;
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.2);
         }
-        .btn-mic:active { transform: scale(0.9); }
-        .btn-mic.listening {
-            background-color: #00ff00;
-            animation: pulse 1.5s infinite;
+        #btnEscuchar.active {
+            background: #00ff41;
+            color: black;
+            box-shadow: 0 0 20px #00ff41;
         }
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(0, 255, 0, 0.7); }
-            70% { box-shadow: 0 0 0 20px rgba(0, 255, 0, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(0, 255, 0, 0); }
-        }
-        .comandos {
-            margin-top: 40px;
-            text-align: left;
-            display: inline-block;
-            background: #333;
-            padding: 20px;
-            border-radius: 10px;
-        }
-        video {
-            width: 90%;
-            max-width: 400px;
-            margin-top: 20px;
-            display: none;
-            border-radius: 10px;
+        .log {
+            font-size: 0.8rem;
+            color: #008f11;
+            margin-top: 10px;
         }
     </style>
 </head>
 <body>
 
-    <h1>Voz Control Web</h1>
-    <p id="status">Presiona el micro para hablar</p>
-    <p id="transcript">Esperando voz...</p>
+    <h1>BINARY_INPUT_V1.0</h1>
+    
+    <div id="display-binario">____</div>
+    
+    <button id="btnEscuchar">INICIAR ESCUCHA</button>
 
-    <button id="btnStart" class="btn-mic">🎤</button>
-
-    <br>
-    <!-- Contenedor para la cámara si se activa -->
-    <video id="webcam" autoplay playsinline></video>
-
-    <div class="comandos">
-        <strong>Diccionario Inventado:</strong>
-        <ul>
-            <li>"Nuka" -> Abrir YouTube</li>
-            <li>"Paki" -> Activar Cámara</li>
-            <li>"Melo" -> Cambiar fondo a azul</li>
-            <li>"Taki" -> Decir la hora</li>
-            <li>"Reset" -> Limpiar todo</li>
-        </ul>
+    <div class="instrucciones">
+        <strong>Diccionario de Comandos:</strong><br>
+        "0 0 1" -> Abrir Google<br>
+        "0 1 0" -> Activar Cámara<br>
+        "0 1 1" -> Decir la Hora<br>
+        "1 1 1" -> Vibrar Celular<br>
+        <p style="color: #00ff41;">Di "CERO" o "UNO". Pausa para ejecutar.</p>
     </div>
 
+    <div id="log" class="log">Esperando sistema...</div>
+
     <script>
-        // --- 1. CONFIGURACIÓN DEL DICCIONARIO ---
-        const DICCIONARIO = {
-            "nuka": "OPEN_YOUTUBE",
-            "paki": "OPEN_CAMERA",
-            "melo": "THEME_BLUE",
-            "taki": "SAY_TIME",
-            "reset": "RESET"
+        // --- CONFIGURACIÓN DEL IDIOMA BINARIO ---
+        const DICCIONARIO_BINARIO = {
+            "001": () => { hablar("Abriendo buscador"); window.open("https://google.com"); },
+            "010": () => { hablar("Cámara activada"); activarCamara(); },
+            "011": () => { hablar("Son las " + new Date().toLocaleTimeString()); },
+            "111": () => { hablar("Alerta"); window.navigator.vibrate([500, 200, 500]); }
         };
 
-        // --- 2. CONFIGURACIÓN DEL RECONOCIMIENTO DE VOZ ---
+        let cadenaActual = "";
+        let timeoutEjecucion;
+
         const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-        recognition.lang = 'es-ES'; // Detecta fonética en español
-        recognition.continuous = false;
+        recognition.lang = 'es-ES';
+        recognition.continuous = true;
         recognition.interimResults = false;
 
-        const btn = document.getElementById('btnStart');
-        const statusText = document.getElementById('status');
-        const transcriptText = document.getElementById('transcript');
-        const video = document.getElementById('webcam');
+        const btn = document.getElementById('btnEscuchar');
+        const display = document.getElementById('display-binario');
+        const log = document.getElementById('log');
 
         btn.onclick = () => {
-            recognition.start();
-            btn.classList.add('listening');
-            statusText.innerText = "Escuchando tu idioma...";
+            if (btn.classList.contains('active')) {
+                recognition.stop();
+                btn.classList.remove('active');
+                btn.innerText = "INICIAR ESCUCHA";
+            } else {
+                recognition.start();
+                btn.classList.add('active');
+                btn.innerText = "SISTEMA ACTIVO";
+                cadenaActual = "";
+                display.innerText = "____";
+            }
         };
 
         recognition.onresult = (event) => {
-            const voz = event.results[0][0].transcript.toLowerCase();
-            transcriptText.innerText = `Dijiste: "${voz}"`;
-            ejecutarAccion(voz);
-        };
+            const result = event.results[event.results.length - 1][0].transcript.toLowerCase();
+            log.innerText = "Escuchado: " + result;
 
-        recognition.onend = () => {
-            btn.classList.remove('listening');
-            statusText.innerText = "Presiona para volver a hablar";
-        };
-
-        // --- 3. LÓGICA DE LAS ACCIONES ---
-        function ejecutarAccion(comando) {
-            // Buscamos si alguna palabra del diccionario está en lo que dijimos
-            let accion = null;
-            for (let clave in DICCIONARIO) {
-                if (comando.includes(clave)) {
-                    accion = DICCIONARIO[clave];
-                    break;
-                }
+            // Procesamos las palabras para extraer ceros y unos
+            if (result.includes("cero") || result.includes("0")) {
+                cadenaActual += "0";
+            } 
+            if (result.includes("uno") || result.includes("1")) {
+                cadenaActual += "1";
             }
 
-            switch(accion) {
-                case "OPEN_YOUTUBE":
-                    hablar("Abriendo YouTube");
-                    window.open("https://www.youtube.com", "_blank");
-                    break;
+            display.innerText = cadenaActual;
 
-                case "OPEN_CAMERA":
-                    hablar("Activando cámara");
-                    activarCamara();
-                    break;
+            // Esperar 2 segundos de silencio para ejecutar el comando
+            clearTimeout(timeoutEjecucion);
+            timeoutEjecucion = setTimeout(ejecutarComando, 2000);
+        };
 
-                case "THEME_BLUE":
-                    document.body.style.backgroundColor = "#0055ff";
-                    hablar("Cambiando color");
-                    break;
+        function ejecutarComando() {
+            if (cadenaActual === "") return;
 
-                case "SAY_TIME":
-                    const hora = new Date().toLocaleTimeString();
-                    hablar("Son las " + hora);
-                    break;
-
-                case "RESET":
-                    location.reload();
-                    break;
-
-                default:
-                    hablar("No reconozco ese comando");
+            log.innerText = "Procesando código: " + cadenaActual;
+            
+            if (DICCIONARIO_BINARIO[cadenaActual]) {
+                DICCIONARIO_BINARIO[cadenaActual]();
+            } else {
+                hablar("Código binario no asignado");
             }
+
+            // Reiniciar para el siguiente comando
+            setTimeout(() => {
+                cadenaActual = "";
+                display.innerText = "____";
+            }, 1000);
         }
 
-        // Función para que el celular hable
         function hablar(texto) {
             const ut = new SpeechSynthesisUtterance(texto);
             ut.lang = 'es-ES';
             window.speechSynthesis.speak(ut);
         }
 
-        // Función para la cámara
-        async function activarCamara() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                video.srcObject = stream;
-                video.style.display = "inline-block";
-            } catch (err) {
-                alert("No se pudo acceder a la cámara");
-            }
+        function activarCamara() {
+            const video = document.createElement('video');
+            video.style.width = "100%";
+            document.body.appendChild(video);
+            navigator.mediaDevices.getUserMedia({ video: true }).then(s => {
+                video.srcObject = s;
+                video.play();
+            });
         }
+
+        recognition.onerror = (e) => {
+            log.innerText = "Error: " + e.error;
+        };
     </script>
 </body>
 </html>
