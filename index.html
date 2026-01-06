@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Lenguaje Inventado - Control Voz</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            text-align: center;
+            background-color: #1a1a1a;
+            color: white;
+            padding-top: 50px;
+        }
+        #status {
+            font-size: 1.2rem;
+            color: #00ff00;
+            margin-bottom: 20px;
+        }
+        #transcript {
+            font-style: italic;
+            color: #aaa;
+            margin-bottom: 30px;
+            min-height: 24px;
+        }
+        .btn-mic {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            border: none;
+            background-color: #ff4b2b;
+            color: white;
+            font-size: 30px;
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(255, 75, 43, 0.5);
+            transition: transform 0.2s;
+        }
+        .btn-mic:active { transform: scale(0.9); }
+        .btn-mic.listening {
+            background-color: #00ff00;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(0, 255, 0, 0.7); }
+            70% { box-shadow: 0 0 0 20px rgba(0, 255, 0, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 255, 0, 0); }
+        }
+        .comandos {
+            margin-top: 40px;
+            text-align: left;
+            display: inline-block;
+            background: #333;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        video {
+            width: 90%;
+            max-width: 400px;
+            margin-top: 20px;
+            display: none;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Voz Control Web</h1>
+    <p id="status">Presiona el micro para hablar</p>
+    <p id="transcript">Esperando voz...</p>
+
+    <button id="btnStart" class="btn-mic">🎤</button>
+
+    <br>
+    <!-- Contenedor para la cámara si se activa -->
+    <video id="webcam" autoplay playsinline></video>
+
+    <div class="comandos">
+        <strong>Diccionario Inventado:</strong>
+        <ul>
+            <li>"Nuka" -> Abrir YouTube</li>
+            <li>"Paki" -> Activar Cámara</li>
+            <li>"Melo" -> Cambiar fondo a azul</li>
+            <li>"Taki" -> Decir la hora</li>
+            <li>"Reset" -> Limpiar todo</li>
+        </ul>
+    </div>
+
+    <script>
+        // --- 1. CONFIGURACIÓN DEL DICCIONARIO ---
+        const DICCIONARIO = {
+            "nuka": "OPEN_YOUTUBE",
+            "paki": "OPEN_CAMERA",
+            "melo": "THEME_BLUE",
+            "taki": "SAY_TIME",
+            "reset": "RESET"
+        };
+
+        // --- 2. CONFIGURACIÓN DEL RECONOCIMIENTO DE VOZ ---
+        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.lang = 'es-ES'; // Detecta fonética en español
+        recognition.continuous = false;
+        recognition.interimResults = false;
+
+        const btn = document.getElementById('btnStart');
+        const statusText = document.getElementById('status');
+        const transcriptText = document.getElementById('transcript');
+        const video = document.getElementById('webcam');
+
+        btn.onclick = () => {
+            recognition.start();
+            btn.classList.add('listening');
+            statusText.innerText = "Escuchando tu idioma...";
+        };
+
+        recognition.onresult = (event) => {
+            const voz = event.results[0][0].transcript.toLowerCase();
+            transcriptText.innerText = `Dijiste: "${voz}"`;
+            ejecutarAccion(voz);
+        };
+
+        recognition.onend = () => {
+            btn.classList.remove('listening');
+            statusText.innerText = "Presiona para volver a hablar";
+        };
+
+        // --- 3. LÓGICA DE LAS ACCIONES ---
+        function ejecutarAccion(comando) {
+            // Buscamos si alguna palabra del diccionario está en lo que dijimos
+            let accion = null;
+            for (let clave in DICCIONARIO) {
+                if (comando.includes(clave)) {
+                    accion = DICCIONARIO[clave];
+                    break;
+                }
+            }
+
+            switch(accion) {
+                case "OPEN_YOUTUBE":
+                    hablar("Abriendo YouTube");
+                    window.open("https://www.youtube.com", "_blank");
+                    break;
+
+                case "OPEN_CAMERA":
+                    hablar("Activando cámara");
+                    activarCamara();
+                    break;
+
+                case "THEME_BLUE":
+                    document.body.style.backgroundColor = "#0055ff";
+                    hablar("Cambiando color");
+                    break;
+
+                case "SAY_TIME":
+                    const hora = new Date().toLocaleTimeString();
+                    hablar("Son las " + hora);
+                    break;
+
+                case "RESET":
+                    location.reload();
+                    break;
+
+                default:
+                    hablar("No reconozco ese comando");
+            }
+        }
+
+        // Función para que el celular hable
+        function hablar(texto) {
+            const ut = new SpeechSynthesisUtterance(texto);
+            ut.lang = 'es-ES';
+            window.speechSynthesis.speak(ut);
+        }
+
+        // Función para la cámara
+        async function activarCamara() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+                video.style.display = "inline-block";
+            } catch (err) {
+                alert("No se pudo acceder a la cámara");
+            }
+        }
+    </script>
+</body>
+</html>
