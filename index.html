@@ -3,166 +3,125 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Binary Voice Controller</title>
+    <title>Binary Control Fix</title>
     <style>
-        body {
-            background-color: #050505;
-            color: #00ff41;
-            font-family: 'Courier New', Courier, monospace;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            text-align: center;
-        }
-        #display-binario {
-            font-size: 3rem;
-            letter-spacing: 10px;
-            margin: 20px;
-            text-shadow: 0 0 15px #00ff41;
-            min-height: 1.2em;
-        }
-        .instrucciones {
-            color: #888;
-            font-size: 0.9rem;
-            border: 1px solid #333;
-            padding: 15px;
-            border-radius: 5px;
-        }
-        #btnEscuchar {
-            background: none;
-            border: 2px solid #00ff41;
-            color: #00ff41;
-            padding: 15px 30px;
-            font-size: 1.2rem;
-            cursor: pointer;
-            margin-bottom: 20px;
-            box-shadow: 0 0 10px rgba(0, 255, 65, 0.2);
-        }
-        #btnEscuchar.active {
-            background: #00ff41;
-            color: black;
-            box-shadow: 0 0 20px #00ff41;
-        }
-        .log {
-            font-size: 0.8rem;
-            color: #008f11;
-            margin-top: 10px;
-        }
+        body { background: #000; color: #0f0; font-family: monospace; padding: 20px; text-align: center; }
+        #console { background: #111; border: 1px solid #0f0; padding: 15px; height: 150px; overflow-y: auto; text-align: left; font-size: 0.8rem; margin-bottom: 20px; }
+        #bin-display { font-size: 3rem; color: #fff; text-shadow: 0 0 10px #0f0; margin: 20px 0; min-height: 1em;}
+        button { background: #0f0; color: #000; border: none; padding: 20px; width: 100%; font-weight: bold; border-radius: 10px; cursor: pointer; }
+        .error { color: #f00; }
+        .success { color: #0f0; }
     </style>
 </head>
 <body>
 
-    <h1>BINARY_INPUT_V1.0</h1>
+    <h2>BINARY_OS_DEBUG</h2>
     
-    <div id="display-binario">____</div>
+    <div id="console">--- SYSTEM READY ---<br></div>
     
-    <button id="btnEscuchar">INICIAR ESCUCHA</button>
+    <div id="bin-display"></div>
 
-    <div class="instrucciones">
-        <strong>Diccionario de Comandos:</strong><br>
-        "0 0 1" -> Abrir Google<br>
-        "0 1 0" -> Activar Cámara<br>
-        "0 1 1" -> Decir la Hora<br>
-        "1 1 1" -> Vibrar Celular<br>
-        <p style="color: #00ff41;">Di "CERO" o "UNO". Pausa para ejecutar.</p>
+    <button id="btnAction">PRESIONAR PARA HABLAR</button>
+
+    <div style="margin-top:20px; font-size: 0.7rem; color: #666;">
+        Comandos: "01" (Vibrar), "11" (Hora), "00" (Cámara)
     </div>
 
-    <div id="log" class="log">Esperando sistema...</div>
-
     <script>
-        // --- CONFIGURACIÓN DEL IDIOMA BINARIO ---
-        const DICCIONARIO_BINARIO = {
-            "001": () => { hablar("Abriendo buscador"); window.open("https://google.com"); },
-            "010": () => { hablar("Cámara activada"); activarCamara(); },
-            "011": () => { hablar("Son las " + new Date().toLocaleTimeString()); },
-            "111": () => { hablar("Alerta"); window.navigator.vibrate([500, 200, 500]); }
-        };
+        const consoleLog = document.getElementById('console');
+        const binDisplay = document.getElementById('bin-display');
+        const btn = document.getElementById('btnAction');
+        let currentCode = "";
+        let isListening = false;
 
-        let cadenaActual = "";
-        let timeoutEjecucion;
+        // Función para escribir en la consola de la pantalla
+        function log(msg, isError = false) {
+            const span = document.createElement('div');
+            span.className = isError ? 'error' : 'success';
+            span.innerHTML = `> ${msg}`;
+            consoleLog.appendChild(span);
+            consoleLog.scrollTop = consoleLog.scrollHeight;
+        }
 
-        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        // 1. Verificar si el navegador soporta voz
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            log("ERROR: Tu navegador no soporta reconocimiento de voz.", true);
+        }
+
+        const recognition = new SpeechRecognition();
         recognition.lang = 'es-ES';
-        recognition.continuous = true;
+        recognition.continuous = true; 
         recognition.interimResults = false;
 
-        const btn = document.getElementById('btnEscuchar');
-        const display = document.getElementById('display-binario');
-        const log = document.getElementById('log');
-
         btn.onclick = () => {
-            if (btn.classList.contains('active')) {
-                recognition.stop();
-                btn.classList.remove('active');
-                btn.innerText = "INICIAR ESCUCHA";
-            } else {
-                recognition.start();
-                btn.classList.add('active');
-                btn.innerText = "SISTEMA ACTIVO";
-                cadenaActual = "";
-                display.innerText = "____";
+            try {
+                if (!isListening) {
+                    recognition.start();
+                    isListening = true;
+                    btn.innerText = "ESCUCHANDO...";
+                    btn.style.background = "#f00";
+                    log("Micrófono activado. Di 'cero' o 'uno'.");
+                } else {
+                    recognition.stop();
+                    isListening = false;
+                    btn.innerText = "PRESIONAR PARA HABLAR";
+                    btn.style.background = "#0f0";
+                    log("Micrófono desactivado.");
+                }
+            } catch (e) {
+                log("Error al iniciar: " + e.message, true);
             }
         };
 
         recognition.onresult = (event) => {
-            const result = event.results[event.results.length - 1][0].transcript.toLowerCase();
-            log.innerText = "Escuchado: " + result;
+            const text = event.results[event.results.length - 1][0].transcript.toLowerCase();
+            log("Escuchado: " + text);
 
-            // Procesamos las palabras para extraer ceros y unos
-            if (result.includes("cero") || result.includes("0")) {
-                cadenaActual += "0";
+            // Filtramos la entrada para detectar 0 y 1 en texto o número
+            if (text.includes("cero") || text.includes("0")) {
+                currentCode += "0";
             } 
-            if (result.includes("uno") || result.includes("1")) {
-                cadenaActual += "1";
+            if (text.includes("uno") || text.includes("1")) {
+                currentCode += "1";
             }
 
-            display.innerText = cadenaActual;
+            binDisplay.innerText = currentCode;
 
-            // Esperar 2 segundos de silencio para ejecutar el comando
-            clearTimeout(timeoutEjecucion);
-            timeoutEjecucion = setTimeout(ejecutarComando, 2000);
+            // Si llega a 2 dígitos, ejecuta y limpia
+            if (currentCode.length >= 2) {
+                ejecutarAccion(currentCode);
+                currentCode = "";
+                setTimeout(() => { binDisplay.innerText = ""; }, 2000);
+            }
         };
 
-        function ejecutarComando() {
-            if (cadenaActual === "") return;
+        recognition.onerror = (event) => {
+            log("ERROR DE RECONOCIMIENTO: " + event.error, true);
+            if(event.error === 'not-allowed') {
+                alert("Debes permitir el acceso al micrófono en los ajustes del navegador.");
+            }
+        };
 
-            log.innerText = "Procesando código: " + cadenaActual;
-            
-            if (DICCIONARIO_BINARIO[cadenaActual]) {
-                DICCIONARIO_BINARIO[cadenaActual]();
+        function ejecutarAccion(code) {
+            log("EJECUTANDO COMANDO: " + code);
+            if (code === "01") {
+                log("Acción: VIBRAR");
+                if (navigator.vibrate) navigator.vibrate(500);
+            } else if (code === "11") {
+                log("Acción: HORA");
+                const h = new Date().toLocaleTimeString();
+                const u = new SpeechSynthesisUtterance("Son las " + h);
+                window.speechSynthesis.speak(u);
+            } else if (code === "00") {
+                log("Acción: CÁMARA");
+                navigator.mediaDevices.getUserMedia({video: true})
+                    .then(s => log("Cámara lista (Permiso concedido)"))
+                    .catch(e => log("Error cámara: " + e.message, true));
             } else {
-                hablar("Código binario no asignado");
+                log("Código " + code + " no definido.", true);
             }
-
-            // Reiniciar para el siguiente comando
-            setTimeout(() => {
-                cadenaActual = "";
-                display.innerText = "____";
-            }, 1000);
         }
-
-        function hablar(texto) {
-            const ut = new SpeechSynthesisUtterance(texto);
-            ut.lang = 'es-ES';
-            window.speechSynthesis.speak(ut);
-        }
-
-        function activarCamara() {
-            const video = document.createElement('video');
-            video.style.width = "100%";
-            document.body.appendChild(video);
-            navigator.mediaDevices.getUserMedia({ video: true }).then(s => {
-                video.srcObject = s;
-                video.play();
-            });
-        }
-
-        recognition.onerror = (e) => {
-            log.innerText = "Error: " + e.error;
-        };
     </script>
 </body>
 </html>
